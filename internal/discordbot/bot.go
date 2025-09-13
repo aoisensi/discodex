@@ -138,10 +138,7 @@ func (b *Bot) SetAway() {
 	if b.session == nil {
 		return
 	}
-	_ = b.session.UpdateStatusComplex(discordgo.UpdateStatusData{
-		Status:     "idle",
-		Activities: []*discordgo.Activity{{Name: "退出中", Type: discordgo.ActivityTypeWatching}},
-	})
+	_ = b.session.UpdateStatusComplex(discordgo.UpdateStatusData{Status: "idle", Activities: nil})
 }
 
 // ApplyStreamDelta appends delta for request and edits the message.
