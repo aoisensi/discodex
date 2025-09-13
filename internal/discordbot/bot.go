@@ -181,6 +181,8 @@ func (b *Bot) EndStream(channelID string, requestID int64, final string) {
 	st, ok := b.streams[key]
 	if !ok {
 		if strings.TrimSpace(final) != "" {
+			// no prior delta; briefly show typing before sending final
+			_ = b.session.ChannelTyping(channelID)
 			_, _ = b.session.ChannelMessageSend(channelID, final)
 		}
 		return
@@ -253,8 +255,7 @@ func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) 
 		}
 		return
 	}
-	// タイピングインジケータ（5秒ごとに再表示）
-	b.startTyping(m.ChannelID)
+	// タイピングはAIの出力が確定してから開始（delta受信時など）
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	// attach user tag for Codex
