@@ -31,6 +31,9 @@ type Bot struct {
 
 	// detailed error log destination channel
 	logChannelID string
+
+	// typing indicator controllers per channel
+	typing map[string]context.CancelFunc
 }
 
 type streamState struct {
@@ -50,6 +53,7 @@ func New(token string, guildID string) (*Bot, error) {
 		guildID: guildID,
 		stopCh:  make(chan struct{}),
 		streams: map[string]*streamState{},
+		typing:  map[string]context.CancelFunc{},
 	}
 	b.session.Identify.Intents = discordgo.IntentGuilds | discordgo.IntentGuildMessages | discordgo.IntentMessageContent
 	b.session.AddHandler(b.onReady)
@@ -146,6 +150,8 @@ func (b *Bot) ApplyStreamDelta(channelID string, requestID int64, delta string) 
 	if b.session == nil {
 		return
 	}
+	// ensure typing indicator is active during streaming
+	b.startTyping(channelID)
 	key := fmt.Sprintf("%s#%d", channelID, requestID)
 	st, ok := b.streams[key]
 	if !ok {
@@ -184,6 +190,7 @@ func (b *Bot) EndStream(channelID string, requestID int64, final string) {
 	}
 	_, _ = b.session.ChannelMessageEdit(channelID, st.messageID, st.content)
 	delete(b.streams, key)
+	b.stopTyping(channelID)
 }
 
 // NotifyShutdown posts a shutdown notice to mapped channels and sets presence offline.
@@ -246,8 +253,8 @@ func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) 
 		}
 		return
 	}
-	// タイピングインジケータ
-	_ = s.ChannelTyping(m.ChannelID)
+	// タイピングインジケータ（5秒ごとに再表示）
+	b.startTyping(m.ChannelID)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	// attach user tag for Codex
@@ -265,8 +272,11 @@ func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) 
 		replies = []string{"エラーが発生した"}
 	}
 	if len(replies) == 0 {
+		// streamingの場合はEndStreamで止める
 		return
 	}
+	// 非ストリーミング（即時応答）はここでtyping停止
+	b.stopTyping(m.ChannelID)
 	for _, msg := range replies {
 		msg = strings.TrimSpace(msg)
 		if msg == "" {
@@ -308,6 +318,47 @@ func (b *Bot) ResetChannelStreams(channelID string) {
 		if strings.HasPrefix(k, channelID+"#") {
 			delete(b.streams, k)
 		}
+	}
+	b.stopTyping(channelID)
+}
+
+// startTyping begins a 5s ticker to send ChannelTyping until stopped.
+func (b *Bot) startTyping(channelID string) {
+	if b.session == nil || channelID == "" {
+		return
+	}
+	if b.typing == nil {
+		b.typing = map[string]context.CancelFunc{}
+	}
+	if _, ok := b.typing[channelID]; ok {
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	b.typing[channelID] = cancel
+	go func() {
+		// immediate fire
+		_ = b.session.ChannelTyping(channelID)
+		t := time.NewTicker(5 * time.Second)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				_ = b.session.ChannelTyping(channelID)
+			}
+		}
+	}()
+}
+
+// stopTyping cancels the typing ticker for a channel.
+func (b *Bot) stopTyping(channelID string) {
+	if b.typing == nil {
+		return
+	}
+	if cancel, ok := b.typing[channelID]; ok {
+		cancel()
+		delete(b.typing, channelID)
 	}
 }
 
