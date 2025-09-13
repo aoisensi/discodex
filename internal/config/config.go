@@ -45,8 +45,6 @@ type Codex struct {
 	IdleSeconds int `toml:"idle_seconds"`
 	// 新規会話の先頭に付加する指示文（任意）
 	Preamble string `toml:"preamble"`
-	// ユーザースペースのAGENTS.mdの指示を無視する（新規会話の先頭に明示的に記載）
-	IgnoreUserAgentsMD bool `toml:"ignore_user_agents_md"`
 }
 
 func Load(path string) (*Config, error) {

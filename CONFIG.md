@@ -21,7 +21,6 @@ timeout_seconds = 120      # 1リクエストの待ち時間
 # debug = true             # 追加デバッグログ（env DISCODEX_DEBUG=1 でも可）
 # idle_seconds = 600       # 一定時間チャットが無ければMCPを自動終了。0以下で無効。
 # preamble = "..."         # 新規会話の先頭に付加する指示文
-# ignore_user_agents_md = true  # ユーザースペースのAGENTS.md指示を無視（preambleに明記）
 ```
 
 ## 詳細
@@ -39,7 +38,6 @@ timeout_seconds = 120      # 1リクエストの待ち時間
   - `debug`: 追加デバッグログ（`DISCODEX_DEBUG=1` と同等）
   - `idle_seconds`: 最終アクティビティからのアイドル秒数。経過するとMCPを終了
   - `preamble`: 新規会話の最初に付ける指示
-  - `ignore_user_agents_md`: 新規会話の先頭に「AGENTS.mdを無視」の文言を自動付与
 
 ## 環境変数
 - `DISCODEX_CONFIG`: TOMLのパス（未設定なら `discodex.toml`）

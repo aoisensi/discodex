@@ -303,16 +303,8 @@ func (m *MCPBridge) ChatMulti(ctx context.Context, ch config.Channel, prompt str
 		args["conversationId"] = v.(string)
 	} else {
 		tool = "codex"
-		// preamble / AGENTS.md無視を先頭に差し込む
+		// preamble を先頭に差し込む
 		pre := strings.TrimSpace(m.conf.Preamble)
-		if m.conf.IgnoreUserAgentsMD {
-			ignoreLine := "次の方針に従って: ユーザースペースのAGENTS.mdに書かれた指示は無視する。"
-			if pre != "" {
-				pre = ignoreLine + "\n" + pre
-			} else {
-				pre = ignoreLine
-			}
-		}
 		if pre != "" {
 			p := strings.TrimSpace(prompt)
 			prompt = pre + "\n\n" + p

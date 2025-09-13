@@ -31,5 +31,3 @@ timeout_seconds = 120
 # idle_seconds = 600
 # 新規会話の先頭に付加する指示文（任意）
 # preamble = "必要最低限のログだけ返して"
-# ユーザースペースのAGENTS.mdの指示を無視する
-# ignore_user_agents_md = true
