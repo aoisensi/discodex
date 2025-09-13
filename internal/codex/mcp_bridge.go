@@ -71,6 +71,10 @@ type MCPBridge struct {
 	idleSeconds int
 	idleTimer   *time.Timer
 	lastActive  time.Time
+
+	// suppression of procedural agent messages (e.g., "read AGENTS.md")
+	suppress map[int64]bool
+	msgBuf   map[int64]string
 }
 
 func NewMCPBridge(conf config.Codex) *MCPBridge {
@@ -81,7 +85,7 @@ func NewMCPBridge(conf config.Codex) *MCPBridge {
 		}
 	}
 	idle := conf.IdleSeconds
-	return &MCPBridge{conf: conf, debug: dbg, pending: map[int64]chan json.RawMessage{}, owners: map[int64]string{}, reasonBuf: map[int64]string{}, idleSeconds: idle}
+	return &MCPBridge{conf: conf, debug: dbg, pending: map[int64]chan json.RawMessage{}, owners: map[int64]string{}, reasonBuf: map[int64]string{}, idleSeconds: idle, suppress: map[int64]bool{}, msgBuf: map[int64]string{}}
 }
 
 // WithReasoningHandler registers callbacks for reasoning status updates.
@@ -672,6 +676,31 @@ func (m *MCPBridge) handleNotify(raw map[string]any) {
 		if rv, ok := meta["requestId"].(float64); ok {
 			reqID = int64(rv)
 		}
+		// append buffer and decide suppression
+		m.mu.Lock()
+		buf := m.msgBuf[reqID] + d
+		m.msgBuf[reqID] = buf
+		sup := m.suppress[reqID]
+		// if first time, decide based on combined buffer
+		if _, seen := m.suppress[reqID]; !seen {
+			if shouldSuppressAgentMsg(buf) {
+				sup = true
+				m.suppress[reqID] = true
+			}
+		}
+		m.mu.Unlock()
+		if sup {
+			// if buffer no longer looks like a suppressed meta message, start streaming with accumulated text
+			if !shouldSuppressAgentMsg(buf) {
+				m.mu.Lock()
+				m.suppress[reqID] = false
+				m.mu.Unlock()
+				if m.onAgentDelta != nil && owner != "" {
+					m.onAgentDelta(owner, reqID, buf)
+				}
+			}
+			return
+		}
 		if m.onAgentDelta != nil && owner != "" {
 			m.onAgentDelta(owner, reqID, d)
 		}
@@ -681,8 +710,13 @@ func (m *MCPBridge) handleNotify(raw map[string]any) {
 		if rv, ok := meta["requestId"].(float64); ok {
 			reqID = int64(rv)
 		}
-		if m.onAgentDone != nil && owner != "" {
-			m.onAgentDone(owner, reqID, final)
+		// if suppressed and still looks like procedural message, skip output
+		if m.suppress[reqID] && shouldSuppressAgentMsg(final) {
+			// but still clear state below
+		} else {
+			if m.onAgentDone != nil && owner != "" {
+				m.onAgentDone(owner, reqID, final)
+			}
 		}
 		fallthrough
 	case "task_complete":
@@ -695,6 +729,8 @@ func (m *MCPBridge) handleNotify(raw map[string]any) {
 		}
 		m.mu.Lock()
 		delete(m.reasonBuf, key)
+		delete(m.msgBuf, key)
+		delete(m.suppress, key)
 		m.mu.Unlock()
 		// ensure stream termination even if no final agent_message
 		if m.onAgentDone != nil && owner != "" {
@@ -704,6 +740,27 @@ func (m *MCPBridge) handleNotify(raw map[string]any) {
 			m.onReasoningEnd(owner)
 		}
 	}
+}
+
+// shouldSuppressAgentMsg returns true if the agent message looks like a procedural
+// statement about reading AGENTS.md (in English or Japanese).
+func shouldSuppressAgentMsg(s string) bool {
+	t := strings.ToLower(strings.TrimSpace(s))
+	if t == "" {
+		return false
+	}
+	if !strings.Contains(t, "agents.md") {
+		return false
+	}
+	// common verbs indicating reading/inspecting
+	if strings.Contains(t, "read") || strings.Contains(t, "reading") || strings.Contains(t, "check") || strings.Contains(t, "open") {
+		return true
+	}
+	// Japanese verbs
+	if strings.Contains(t, "読む") || strings.Contains(t, "読み") || strings.Contains(t, "参照") || strings.Contains(t, "確認") || strings.Contains(t, "開く") {
+		return true
+	}
+	return false
 }
 
 func (m *MCPBridge) deliver(id int64, v any) {
