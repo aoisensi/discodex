@@ -31,4 +31,5 @@ go.work.sum
 # .idea/
 # .vscode/
 
-/discodex.toml
+/*.toml
+!/discodex.example.toml

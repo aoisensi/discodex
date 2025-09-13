@@ -36,11 +36,32 @@ func main() {
 
 	// Codexクライアント（MCP常駐）
 	runner := codex.NewMCPBridge(conf.Codex)
-	chatFn := func(ctx context.Context, ch config.Channel, prompt string) (string, error) {
-		return runner.Chat(ctx, ch, prompt)
+	// Reasoning -> Discord presence
+	runner.WithReasoningHandler(
+		func(channelID, text string) { bot.SetReasoningStatus(text) },
+		func(channelID string) { bot.ClearStatus() },
+	)
+	// Streaming agent_message -> Discord message edit
+	runner.WithStreamHandler(
+		func(channelID string, requestID int64, delta string) {
+			bot.ApplyStreamDelta(channelID, requestID, delta)
+		},
+		func(channelID string, requestID int64, final string) { bot.EndStream(channelID, requestID, final) },
+	)
+	// MCP lifecycle -> Presence
+	runner.WithStateHandler(
+		func() { bot.ClearStatus() }, // up: online, no special activity
+		func() { bot.SetAway() },     // down: away/退出中
+	)
+	chatFn := func(ctx context.Context, ch config.Channel, prompt string) ([]string, error) {
+		return runner.ChatMulti(ctx, ch, prompt)
 	}
 
-	bot.WithChannelMap(cmap).WithChatHandler(chatFn)
+	bot.WithChannelMap(cmap).WithLogChannel(conf.Discord.LogChannelID).WithChatHandler(chatFn).WithResetHandler(func(ctx context.Context, ch config.Channel) error {
+		// Clear conversation state in MCP and return
+		runner.Reset(ch.ChannelID)
+		return nil
+	})
 
 	// Run with graceful shutdown support
 	go func() {

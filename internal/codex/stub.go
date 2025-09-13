@@ -21,3 +21,14 @@ func (c *Client) Chat(ctx context.Context, ch config.Channel, prompt string) (st
 	}
 	return fmt.Sprintf("[codex-stub]\n%s", p), nil
 }
+
+func (c *Client) ChatMulti(ctx context.Context, ch config.Channel, prompt string) ([]string, error) {
+	s, err := c.Chat(ctx, ch, prompt)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(s) == "" {
+		return nil, nil
+	}
+	return []string{s}, nil
+}

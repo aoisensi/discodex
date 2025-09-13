@@ -4,6 +4,8 @@ bot_token = "YOUR_BOT_TOKEN"
 # guild_id を指定するとそのギルドにのみコマンド登録（ローカル開発向け）
 # 空の場合はグローバル登録（反映に最大1時間程度）
 guild_id  = ""
+# 詳細エラー等のログ出力先チャンネル（任意）
+# log_channel_id = "123456789012345678"
 
 # チャンネルごとの実行設定
 [[channels]]
@@ -23,3 +25,11 @@ command    = ""
 command = ""
 # タイムアウト秒
 timeout_seconds = 120
+# 詳細ログ（環境変数 DISCODEX_DEBUG=1 でも有効）
+# debug = true
+# 一定時間チャットが無ければMCPを自動終了（秒）。0以下で無効。
+# idle_seconds = 600
+# 新規会話の先頭に付加する指示文（任意）
+# preamble = "必要最低限のログだけ返して"
+# ユーザースペースのAGENTS.mdの指示を無視する
+# ignore_user_agents_md = true

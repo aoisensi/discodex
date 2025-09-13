@@ -1,84 +1,56 @@
 # discodex
 
+Codex CLI を常駐起動し、Discord と橋渡しするボット。
+
 ## 概要
-discodex は、ローカルの Codex インタラクティブCLIを常駐起動し、Discord とやり取りを橋渡しする Bot。入力は Codex プロセスの標準入力に流し、出力はユーザーディレクトリ配下の `.codex/sessions/*.jsonl` を tail して取得して返信する。
+- Discordメッセージを Codex の MCP（STDIO/JSON‑RPC）へ流し、応答をDiscordへ返す。
+- 紐付けチャンネルではメンション不要。未紐付けはメンションで単発実行。
+- 応答はストリーミング（deltaをメッセ編集で逐次反映、確定で固定）。
+- 推論中テキスト（agent_reasoning）を Discord のプレゼンスに反映。
+- 終了時は各チャンネルへ終了通知し、Presence をオフライン化。
 
-### 基本動作
-- 紐付けたチャンネルではメンション不要で通常メッセージをそのまま Codex に渡す。
-- 紐付けがないチャンネルでは、Bot メンションを付けると一度だけ実行して返信する。
+## できること
+- ストリーミング返信（`agent_message_delta` → 編集、`agent_message` → 確定）
+- プレゼンス更新（`agent_reasoning(_delta)`）
+- 会話継続（`conversationId` を保持）
+- デバッグログ（`DISCODEX_DEBUG=1` または TOML の `debug=true`）
+- リセット（本文に `/reset` と送ると会話をクリア）
 
-## 目的（暫定）
-- Go を用いた実運用可能なサービス／ツールの作成
-- 小さく始めて継続的に改善できる設計・運用体制の確立
+## 動かし方
+1) 前提
+- Codex CLI がローカルで動く（`codex mcp` が起動できる）
+- Discord Bot Token を用意し、Message Content Intent を有効化
 
-## ステータス
-- プロジェクト初期化前（この README の作成のみ）
+2) 設定
+- `discodex.example.toml` を `discodex.toml` にコピーして編集
+- `bot_token` と `channels[].channel_id` を設定
 
-## 想定スタック（暫定）
-- 言語: Go 1.22+
-- 依存管理: `go mod`
-- テスト: `go test`
-
-## 次の一歩
-- 初期要件の確定（目的・主要ユースケース・最初の機能）
-- リポジトリ初期化（`go mod init`、ベースディレクトリ構成）
-- CI の雛形追加（テストと lint）
-
-## 実行手順（開発）
-- 前提: Codex CLI がローカル環境で実行できること（`codex exec` が動く）。
-- `discodex.toml` を用意（`discodex.example.toml` をコピーして編集）。
-
-### ビルドと実行
-```powershell
-go build -o .\\bin\\discodex .\\cmd\\discodex
-.\\bin\\discodex.exe   # 環境変数は不要、TOMLのみで起動
+3) 実行
+```bash
+go run ./cmd/discodex
+# デバッグ有効:
+DISCODEX_DEBUG=1 go run ./cmd/discodex
 ```
-
-### 使い方（初期実装）
-- チャット会話:
-  - 紐付けされたチャンネルでは、メンション不要で通常メッセージが Codex に渡る。
-  - 紐付けがないチャンネルでは、Bot メンションを付けて送る。
-  - 例: `@discodex このディレクトリのファイル一覧を見せて`
-
-注: 本Botは Codex のMCPサーバーにSTDIO JSON‑RPCで接続し、`tools/call` の `codex` / `codex-reply` を叩いて会話を継続する。
 
 ## 設定（TOML）
-- 既定ファイル名は `discodex.toml`（環境変数不要）。別パスを使う場合は `DISCODEX_CONFIG` を設定可。
-- 例:
+- 既定ファイル: `discodex.toml`（`DISCODEX_CONFIG` で別パス指定可）
+- 例と全項目は CONFIG.md を参照
 
-```toml
-# Discord設定
-[discord]
-bot_token = "YOUR_BOT_TOKEN"
-# guild_id を指定すると、そのギルドにのみコマンド登録（開発時に便利）
-guild_id  = "123456789012345678" # 空ならグローバル登録
+## 仕組み（MCP）
+- 起動: `codex mcp` を子プロセスとして起動（プロセスグループで管理）
+- 初期化: `initialize` → `initialized`
+- 会話: `tools/call`（`codex`/`codex-reply`）を送信
+- イベント: `codex/event` を受信して delta/推論/完了などを処理
+  - Discordユーザー名を `user` 引数としてMCPに渡す（ニックネーム/グローバル名優先）
 
-# チャンネルごとの実行設定
-[[channels]]
-channel_id = "123456789012345678"  # DiscordのチャンネルID
-# command = "codex -a never --sandbox workspace-write --color never"  # チャンネル個別の起動コマンド
-# workdir = "/home/aoi/work"        # カレントディレクトリ（任意）
-# env = { OPENAI_API_KEY = "sk-..." } # 実行時に設定する環境変数
+詳細は ARCHITECTURE.md を参照。
 
-[[channels]]
-channel_id = "987654321098765432"
-distro     = "Debian"
+## トラブルシュート
+- 応答がない: Message Content Intent を有効に。`DISCODEX_DEBUG=1` で `mcp =>/<=` を確認
+- 終了しない: SIG 後も残る場合は issue へ。内部は pgkill→kill を実装済み
+- MCP応答形式が違う: ログとレスポンス例を添付して issue へ
 
-# Codexブリッジ
-[codex]
-# MCP起動に使うコマンド（空なら既定: codex mcp）
-command = ""
-timeout_seconds = 120
-```
-
-- 紐付けされたチャンネルのメッセージは、指定ディストリのコンテキストとして処理される。
-- `/wsl start` と `/wsl stop` は、呼び出しチャンネルが紐付け済みならそのディストリを対象に動作。未紐付けなら既定を対象。
-
-### 仕組み（MCP）
-- 起動時に `codex mcp` をSTDIOで起動
-- JSON‑RPCで `initialize`→`initialized` を送信
-- 会話開始: `tools/call { name: "codex", arguments: { prompt, sandbox, approval-policy, cwd? } }`
-- 継続: `tools/call { name: "codex-reply", arguments: { conversationId, prompt } }`
-
----
-追記してほしい具体的な目的やユースケースがあれば知らせてください。内容に合わせて本概要を更新する。
+## 開発
+- Go 1.22+
+- ビルド: `go build ./...`
+- 主要パッケージ: `internal/discordbot`, `internal/codex`, `internal/config`

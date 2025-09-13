@@ -18,6 +18,8 @@ type Config struct {
 type Discord struct {
 	BotToken string `toml:"bot_token"`
 	GuildID  string `toml:"guild_id"`
+	// 詳細エラーログなどを投稿するチャンネル（任意）
+	LogChannelID string `toml:"log_channel_id"`
 }
 
 type Channel struct {
@@ -31,14 +33,20 @@ type Channel struct {
 }
 
 type Codex struct {
-    // インタラクティブ起動に使うコマンド（空なら既定: codex -a never --sandbox workspace-write --color never）
-    Command string `toml:"command"`
-    // interactiveモード用: セッションJSONLのルートディレクトリを上書き（未指定なら $HOME/.codex/sessions）
-    SessionRoot string `toml:"session_root"`
-    // 1リクエストのタイムアウト（秒）
-    TimeoutSeconds int `toml:"timeout_seconds"`
-    // 追加デバッグログ（環境変数 DISCODEX_DEBUG=1 でも有効）
-    Debug bool `toml:"debug"`
+	// インタラクティブ起動に使うコマンド（空なら既定: codex -a never --sandbox workspace-write --color never）
+	Command string `toml:"command"`
+	// interactiveモード用: セッションJSONLのルートディレクトリを上書き（未指定なら $HOME/.codex/sessions）
+	SessionRoot string `toml:"session_root"`
+	// 1リクエストのタイムアウト（秒）
+	TimeoutSeconds int `toml:"timeout_seconds"`
+	// 追加デバッグログ（環境変数 DISCODEX_DEBUG=1 でも有効）
+	Debug bool `toml:"debug"`
+	// アイドルでMCPを自動終了するまでの秒数（0以下で無効）
+	IdleSeconds int `toml:"idle_seconds"`
+	// 新規会話の先頭に付加する指示文（任意）
+	Preamble string `toml:"preamble"`
+	// ユーザースペースのAGENTS.mdの指示を無視する（新規会話の先頭に明示的に記載）
+	IgnoreUserAgentsMD bool `toml:"ignore_user_agents_md"`
 }
 
 func Load(path string) (*Config, error) {
