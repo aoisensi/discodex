@@ -1,0 +1,25 @@
+# Discord設定
+[discord]
+bot_token = "YOUR_BOT_TOKEN"
+# guild_id を指定するとそのギルドにのみコマンド登録（ローカル開発向け）
+# 空の場合はグローバル登録（反映に最大1時間程度）
+guild_id  = ""
+
+# チャンネルごとの実行設定
+[[channels]]
+channel_id = "123456789012345678"  # DiscordのチャンネルID
+# command/workdir/env は任意
+# command = "codex mcp"           # チャンネル個別の起動コマンド
+# workdir = "/home/aoi/work"      # カレントディレクトリ（任意）
+# env = { OPENAI_API_KEY = "sk-..." }
+
+[[channels]]
+channel_id = "987654321098765432"
+command    = ""
+
+# Codexブリッジ
+[codex]
+# MCP起動に使うコマンド（空なら既定: codex mcp）
+command = ""
+# タイムアウト秒
+timeout_seconds = 120
