@@ -688,12 +688,18 @@ func (m *MCPBridge) handleNotify(raw map[string]any) {
 	case "task_complete":
 		// clear buffer and notify end
 		var key int64
+		var reqID int64
 		if rv, ok := meta["requestId"].(float64); ok {
 			key = int64(rv)
+			reqID = int64(rv)
 		}
 		m.mu.Lock()
 		delete(m.reasonBuf, key)
 		m.mu.Unlock()
+		// ensure stream termination even if no final agent_message
+		if m.onAgentDone != nil && owner != "" {
+			m.onAgentDone(owner, reqID, "")
+		}
 		if m.onReasoningEnd != nil && owner != "" {
 			m.onReasoningEnd(owner)
 		}
